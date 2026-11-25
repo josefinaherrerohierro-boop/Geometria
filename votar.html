@@ -41,7 +41,7 @@ input{width:100%;font:700 22px "OpenSansE",sans-serif;padding:16px;border-radius
 <body>
 <header><div class="brand">La Geometría <span>del Sonido</span></div><div class="teamchip" id="tc"><i></i><b></b></div></header>
 <main id="app"><p>Conectando…</p></main>
-<div class="status"><span><span class="dot" id="dot"></span><span id="st">conectando</span></span><a href="#" id="chg" style="color:var(--muted)">cambiar equipo</a></div>
+<div class="status"><span><span class="dot" id="dot"></span><span id="st">conectando</span></span><span><span class="dot" id="pdot"></span><span id="pst">esperando la pantalla</span></span></div>
 <script>
 /* ---- Cliente MQTT mínimo sobre WebSocket (MQTT 3.1.1, QoS 0) ---- */
 var MQ = (function(){
@@ -105,24 +105,26 @@ var URL_B = B==='L' ? 'ws://localhost:9001' : BROKERS[+B]||BROKERS[0];
 var P='lageometriadelsonido/'+ROOM+'/';
 function ls(k,v){ try{ if(v===undefined) return localStorage.getItem(k); localStorage.setItem(k,v); }catch(e){ return null; } }
 var U=ls('gds_u'); if(!U){ U=Math.random().toString(36).slice(2,10); ls('gds_u',U); }
-var ME={ team: ls('gds_team_'+ROOM)!==null ? +ls('gds_team_'+ROOM) : null, name: ls('gds_name')||'' };
+var ME={ team: ls('gds_team_'+ROOM)!==null ? +ls('gds_team_'+ROOM) : null, name: ls('gds_name')||'', joined: ls('gds_joined_'+ROOM)==='1' }, PRES=false, FRESH=false;
 var TEAMS={n:4,names:['Rojo','Azul','Amarillo','Verde']}, STATE={k:'idle'}, MY={}, RECV=Date.now(), app=document.getElementById('app');
 function esc(s){ return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
 var cli=new MQ.Client(URL_B,{onMessage:onMsg,onState:function(on){ document.getElementById('dot').className='dot'+(on?' on':''); document.getElementById('st').textContent=on?'en vivo · sala '+ROOM:'reconectando…'; if(on) hello(); }});
 function send(o){ o.u=U; cli.pub(P+'in',JSON.stringify(o),false); }
-function hello(){ if(ME.team!==null) send({t:'join',team:ME.team,name:ME.name}); }
+function hello(){ if(ME.joined) send({t:'hello',name:ME.name}); }
 function onMsg(t,m){ var o; try{ o=m?JSON.parse(m):null; }catch(e){ return; } if(!o) return;
-  if(t===P+'teams'){ TEAMS=o; if(ME.team!==null&&ME.team>=TEAMS.n){ ME.team=null; } hello(); render(); }
+  if(t===P+'teams'){ TEAMS=o; if(!PRES){ PRES=true; document.getElementById('pdot').className='dot on'; document.getElementById('pst').textContent='pantalla conectada'; hello(); } render(); }
+  else if(t===P+'a/'+U){ if(typeof o.team==='number'){ if(ME.team!==o.team) FRESH=true; ME.team=o.team; ls('gds_team_'+ROOM,String(o.team)); render(); } }
   else if(t===P+'state'){ if(o.k==='q'&&o.id!==STATE.id) RECV=Date.now(); STATE=o; render(); } }
 function chip(){ var c=document.getElementById('tc'); if(ME.team===null){ c.style.display='none'; return; } c.style.display='flex'; c.querySelector('i').style.background=COLORS[ME.team]; c.querySelector('b').textContent=TEAMS.names[ME.team]||''; }
 var tick=null;
 function render(){ chip(); clearInterval(tick);
   if(!ROOM){ app.innerHTML='<h1>Falta el código de sala</h1><p>Escaneá de nuevo el QR de la pantalla.</p>'; return; }
-  if(ME.team===null){ app.innerHTML='<div class="k">Bienvenido/a</div><h1>Elegí tu equipo</h1><input id="nm" maxlength="16" placeholder="Tu nombre (opcional)">';
-    var nm=document.getElementById('nm'); nm.value=ME.name;
-    for(var i=0;i<TEAMS.n;i++){ (function(i){ var b=document.createElement('button'); b.className='btn'; b.style.background=COLORS[i]; b.innerHTML=SH[i]('#fff')+'<span></span>'; b.querySelector('span').textContent=TEAMS.names[i];
-      b.onclick=function(){ ME.name=nm.value.trim().slice(0,16); ls('gds_name',ME.name); ME.team=i; ls('gds_team_'+ROOM,String(i)); hello(); render(); }; app.appendChild(b); })(i); }
-    return; }
+  if(!ME.joined){ app.innerHTML='<div class="k">Bienvenido/a</div><h1>¿Cómo te llamás?</h1><input id="nm" maxlength="16" placeholder="Tu nombre"><p>El equipo te lo sortea la presentación.</p>';
+    var nm=document.getElementById('nm'); nm.value=ME.name; var b=document.createElement('button'); b.className='btn'; b.style.background='#d7263d'; b.style.justifyContent='center'; b.textContent='Entrar';
+    b.onclick=function(){ ME.name=nm.value.trim().slice(0,16); ls('gds_name',ME.name); ME.joined=true; ls('gds_joined_'+ROOM,'1'); hello(); render(); }; app.appendChild(b); return; }
+  if(ME.team===null){ app.innerHTML='<div class="k">Un segundo…</div><h1>Sorteando tu equipo</h1><div class="wave"><span></span><span style="animation-delay:.1s"></span><span style="animation-delay:.2s"></span><span style="animation-delay:.3s"></span><span style="animation-delay:.4s"></span></div><p class="center">'+(PRES?'':'Todavía no hay conexión con la pantalla. Avisale a quien presenta.')+'</p>'; return; }
+  if(FRESH){ FRESH=false; app.innerHTML='<div class="k">Te tocó el equipo</div><div class="btn" style="justify-content:center;font-size:30px;padding:34px;background:'+COLORS[ME.team]+'">'+SH[ME.team]('#fff')+'<span></span></div><p class="center">Este es tu equipo para todos los juegos.</p>';
+    app.querySelector('.btn span').textContent=TEAMS.names[ME.team]||''; setTimeout(render,2600); return; }
   var s=STATE;
   if(s.k==='poll'){ app.innerHTML='<div class="k">Encuesta</div><h1></h1>'; app.querySelector('h1').textContent=s.q;
     s.opts.forEach(function(o,i){ var b=document.createElement('button'); b.className='btn'+(MY['p'+s.id]===i?' sel':''); b.style.background=COLORS[i%4]; b.innerHTML=SH[i%4]('#fff')+'<span></span>'; b.querySelector('span').textContent=o;
@@ -152,9 +154,8 @@ function render(){ chip(); clearInterval(tick);
   app.innerHTML='<div class="k">Estás en el equipo</div><h1></h1><div class="wave"><span></span><span style="animation-delay:.1s"></span><span style="animation-delay:.2s"></span><span style="animation-delay:.3s"></span><span style="animation-delay:.4s"></span></div><p class="center">Mirá la pantalla. Cuando haya algo para votar o responder, aparece acá.</p>';
   app.querySelector('h1').textContent=TEAMS.names[ME.team]||'';
 }
-document.getElementById('chg').onclick=function(e){ e.preventDefault(); ME.team=null; render(); };
 render();
-cli.sub(P+'teams'); cli.sub(P+'state');
+cli.sub(P+'teams'); cli.sub(P+'state'); cli.sub(P+'a/'+U);
 (function go(){ cli.connect().catch(function(){ document.getElementById('st').textContent='sin conexión · reintentando'; setTimeout(go,3000); }); })();
 </script>
 </body>
