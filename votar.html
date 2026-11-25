@@ -112,8 +112,9 @@ var cli=new MQ.Client(URL_B,{onMessage:onMsg,onState:function(on){ document.getE
 function send(o){ o.u=U; cli.pub(P+'in',JSON.stringify(o),false); }
 function hello(){ if(ME.joined) send({t:'hello',name:ME.name}); }
 function onMsg(t,m){ var o; try{ o=m?JSON.parse(m):null; }catch(e){ return; } if(!o) return;
-  if(t===P+'teams'){ TEAMS=o; if(!PRES){ PRES=true; document.getElementById('pdot').className='dot on'; document.getElementById('pst').textContent='pantalla conectada'; hello(); } render(); }
-  else if(t===P+'a/'+U){ if(typeof o.team==='number'){ if(ME.team!==o.team) FRESH=true; ME.team=o.team; ls('gds_team_'+ROOM,String(o.team)); render(); } }
+  if(t===P+'teams'){ TEAMS=o; var sep=ls('gds_ep_'+ROOM); if(o.ep && ME.joined && sep===null) ls('gds_ep_'+ROOM,String(o.ep)); else if(o.ep && ME.joined && sep!==String(o.ep)){ ME.joined=false; ME.team=null; MY={}; ls('gds_joined_'+ROOM,'0'); try{ localStorage.removeItem('gds_team_'+ROOM); }catch(e){} }
+    if(!PRES){ PRES=true; document.getElementById('pdot').className='dot on'; document.getElementById('pst').textContent='pantalla conectada'; hello(); } render(); }
+  else if(t===P+'a/'+U){ if(ME.joined && typeof o.team==='number'){ if(ME.team!==o.team) FRESH=true; ME.team=o.team; ls('gds_team_'+ROOM,String(o.team)); render(); } }
   else if(t===P+'state'){ if(o.k==='q'&&o.id!==STATE.id) RECV=Date.now(); STATE=o; render(); } }
 function chip(){ var c=document.getElementById('tc'); if(ME.team===null){ c.style.display='none'; return; } c.style.display='flex'; c.querySelector('i').style.background=COLORS[ME.team]; c.querySelector('b').textContent=TEAMS.names[ME.team]||''; }
 var tick=null;
@@ -121,7 +122,7 @@ function render(){ chip(); clearInterval(tick);
   if(!ROOM){ app.innerHTML='<h1>Falta el código de sala</h1><p>Escaneá de nuevo el QR de la pantalla.</p>'; return; }
   if(!ME.joined){ app.innerHTML='<div class="k">Bienvenido/a</div><h1>¿Cómo te llamás?</h1><input id="nm" maxlength="16" placeholder="Tu nombre"><p>El equipo te lo sortea la presentación.</p>';
     var nm=document.getElementById('nm'); nm.value=ME.name; var b=document.createElement('button'); b.className='btn'; b.style.background='#d7263d'; b.style.justifyContent='center'; b.textContent='Entrar';
-    b.onclick=function(){ ME.name=nm.value.trim().slice(0,16); ls('gds_name',ME.name); ME.joined=true; ls('gds_joined_'+ROOM,'1'); hello(); render(); }; app.appendChild(b); return; }
+    b.onclick=function(){ ME.name=nm.value.trim().slice(0,16); ls('gds_name',ME.name); ME.joined=true; ls('gds_joined_'+ROOM,'1'); if(TEAMS.ep) ls('gds_ep_'+ROOM,String(TEAMS.ep)); hello(); render(); }; app.appendChild(b); return; }
   if(ME.team===null){ app.innerHTML='<div class="k">Un segundo…</div><h1>Sorteando tu equipo</h1><div class="wave"><span></span><span style="animation-delay:.1s"></span><span style="animation-delay:.2s"></span><span style="animation-delay:.3s"></span><span style="animation-delay:.4s"></span></div><p class="center">'+(PRES?'':'Todavía no hay conexión con la pantalla. Avisale a quien presenta.')+'</p>'; return; }
   if(FRESH){ FRESH=false; app.innerHTML='<div class="k">Te tocó el equipo</div><div class="btn" style="justify-content:center;font-size:30px;padding:34px;background:'+COLORS[ME.team]+'">'+SH[ME.team]('#fff')+'<span></span></div><p class="center">Este es tu equipo para todos los juegos.</p>';
     app.querySelector('.btn span').textContent=TEAMS.names[ME.team]||''; setTimeout(render,2600); return; }
