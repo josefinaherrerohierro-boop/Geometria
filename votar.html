@@ -132,12 +132,13 @@ function render(){ chip(); clearInterval(tick);
       b.onclick=function(){ MY['p'+s.id]=i; send({t:'vote',poll:s.id,opt:i}); render(); }; app.appendChild(b); });
     if(MY['p'+s.id]!==undefined){ var p=document.createElement('p'); p.className='center'; p.textContent='¡Voto enviado! Podés cambiarlo.'; app.appendChild(p); }
     return; }
-  if(s.k==='q'){ var a=MY[s.id];
+  if(s.k==='q'){ var a=MY[s.id], over=s.t && (Date.now()-RECV)>=s.t*1000;
+    if(a===undefined && over){ app.innerHTML='<div class="k"></div><div class="big" style="color:var(--muted)">⏱</div><h1 class="center">¡Se acabó el tiempo!</h1><p class="center">Esta ya no se puede responder. Mirá la pantalla.</p>'; app.querySelector('.k').textContent=s.title||'Pregunta'; return; }
     app.innerHTML='<div class="k"></div><h1></h1>'+(s.t?'<div class="timer"><div id="tb"></div></div>':''); app.querySelector('.k').textContent=s.title||'Pregunta'; app.querySelector('h1').textContent=s.q;
-    if(s.t){ var tb=document.getElementById('tb'); tick=setInterval(function(){ var f=Math.max(0,1-(Date.now()-RECV)/(s.t*1000)); tb.style.transform='scaleX('+f+')'; },100); }
+    if(s.t){ var tb=document.getElementById('tb'); tick=setInterval(function(){ var f=Math.max(0,1-(Date.now()-RECV)/(s.t*1000)); tb.style.transform='scaleX('+f+')'; if(f<=0 && MY[s.id]===undefined){ clearInterval(tick); render(); } },100); }
     if(a!==undefined){ app.insertAdjacentHTML('beforeend','<div class="wave"><span></span><span style="animation-delay:.1s"></span><span style="animation-delay:.2s"></span><span style="animation-delay:.3s"></span><span style="animation-delay:.4s"></span></div><p class="center">Respuesta enviada: <b></b><br>Esperá a que la revelen en la pantalla.</p>');
       app.querySelector('p b').textContent = s.type==='choice'? s.opts[a] : (s.type==='mm'? String(a).replace('.',',')+' mm' : (a===0?'al aire':'traste '+a)); return; }
-    function answer(v){ MY[s.id]=v; send({t:'ans',id:s.id,team:ME.team,v:v,ms:Date.now()-RECV}); render(); }
+    function answer(v){ if(s.t && (Date.now()-RECV)>=s.t*1000){ render(); return; } MY[s.id]=v; send({t:'ans',id:s.id,team:ME.team,v:v,ms:Date.now()-RECV}); render(); }
     if(s.type==='choice'){ s.opts.forEach(function(o,i){ var b=document.createElement('button'); b.className='btn'; b.style.background=(s.colors||COLORS)[i%4]; b.innerHTML=(s.shapes===false?'':SH[i%4]('#fff'))+'<span></span>'; b.querySelector('span').textContent=o; b.onclick=function(){ answer(i); }; app.appendChild(b); }); }
     else if(s.type==='number'){ var g=document.createElement('div'); g.className='grid'; for(var n=s.min;n<=s.max;n++){ (function(n){ var b=document.createElement('button'); b.className='num'; b.textContent=n; b.onclick=function(){ answer(n); }; g.appendChild(b); })(n); } app.appendChild(g); }
     else if(s.type==='mm'){ var fr=s.assign? s.assign[ME.team] : null;
